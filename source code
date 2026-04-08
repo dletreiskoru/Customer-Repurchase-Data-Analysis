@@ -1,4 +1,5 @@
 ---Before analysis, we inspect the first few rows to understand the data structure.---
+USE shopping_trends_updated;
 SELECT * FROM shopping_trends LIMIT 5;
 
 ---We verify if there are missing values across key analytical dimensions.---
