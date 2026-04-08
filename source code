@@ -1,1 +1,121 @@
+---Before analysis, we inspect the first few rows to understand the data structure.---
+SELECT * FROM shopping_trends LIMIT 5;
 
+---We verify if there are missing values across key analytical dimensions.---
+SELECT 
+    COUNT(*) - COUNT(`Age`) AS Age_Null,
+    COUNT(*) - COUNT(`Gender`) AS Gender_Null,
+    COUNT(*) - COUNT(`Item Purchased`) AS Item_Purchased_Null,
+    COUNT(*) - COUNT(`Category`) AS Category_Null,
+    COUNT(*) - COUNT(`Purchase Amount (USD)`) AS Purchase_Amount_Null,
+    COUNT(*) - COUNT(`Location`) AS Location_Null,
+    COUNT(*) - COUNT(`Review Rating`) AS Review_Rating_Null,
+    COUNT(*) - COUNT(`Subscription Status`) AS Subscription_Status_Null,
+    COUNT(*) - COUNT(`Previous Purchases`) AS Previous_Purchases_Null,
+    COUNT(*) - COUNT(`Frequency of Purchases`) AS Frequency_Null
+FROM shopping_trends;
+
+---Ensuring data uniqueness by checking for duplicate records across all fields.---
+SELECT * FROM shopping_trends
+GROUP BY 
+    `Customer ID`, `Age`, `Gender`, `Item Purchased`, `Category`, 
+    `Purchase Amount (USD)`, `Location`, `Size`, `Color`, `Season`, 
+    `Review Rating`, `Subscription Status`, `Shipping Type`, 
+    `Discount Applied`, `Promo Code Used`, `Previous Purchases`, 
+    `Payment Method`, `Frequency of Purchases`
+HAVING COUNT(*) > 1;
+
+---Segmenting users into specific age brackets to understand the primary consumer base.---
+SELECT 
+    CASE 
+        WHEN `Age` < 20 THEN 'Under 20'
+        WHEN `Age` BETWEEN 20 AND 30 THEN '20-30'
+        WHEN `Age` BETWEEN 31 AND 40 THEN '31-40'
+        WHEN `Age` BETWEEN 41 AND 50 THEN '41-50'
+        WHEN `Age` BETWEEN 51 AND 60 THEN '51-60'
+        ELSE '60+' 
+    END AS Age_Group,
+    COUNT(*) AS User_Count
+FROM shopping_trends
+GROUP BY Age_Group;
+
+---Calculating the gender ratio and the average spending power of each group.---
+SELECT 
+    `Gender`, 
+    COUNT(*) AS Total_Users,
+    CONCAT(ROUND(COUNT(*) / (SELECT COUNT(*) FROM shopping_trends) * 100, 2), '%') AS Gender_Ratio,
+    AVG(`Purchase Amount (USD)`) AS Avg_Spending
+FROM shopping_trends
+GROUP BY `Gender`;
+
+---Identifying which product categories drive the most revenue.---
+SELECT 
+    `Category`, 
+    SUM(`Purchase Amount (USD)`) AS Total_Revenue,
+    COUNT(*) AS Units_Sold
+FROM shopping_trends
+GROUP BY `Category`
+ORDER BY Total_Revenue DESC;
+
+---Analyzing consumer color choices to inform inventory and visual marketing.---
+SELECT 
+    `Color`, 
+    COUNT(*) AS Quantity_Sold,
+    SUM(`Purchase Amount (USD)`) AS Revenue
+FROM shopping_trends
+GROUP BY `Color`
+ORDER BY Quantity_Sold DESC;
+
+---Analyzing how seasonality affects transaction volume and ticket size.---
+SELECT 
+    `Season`, 
+    SUM(`Purchase Amount (USD)`) AS Seasonal_Revenue,
+    COUNT(*) AS Transaction_Count,
+    AVG(`Purchase Amount (USD)`) AS Avg_Transaction_Value
+FROM shopping_trends
+GROUP BY `Season`;
+
+---Understanding the logistics and payment methods preferred by users.---
+-- Payment Method Preference
+SELECT 
+    `Payment Method`, 
+    COUNT(*) AS Usage_Count,
+    CONCAT(ROUND(COUNT(*) / (SELECT COUNT(*) FROM shopping_trends) * 100, 2), '%') AS Share
+FROM shopping_trends
+GROUP BY `Payment Method`;
+
+-- Shipping Type Preference
+SELECT 
+    `Shipping Type`, 
+    COUNT(*) AS Count,
+    AVG(`Purchase Amount (USD)`) AS Avg_Spend
+FROM shopping_trends
+GROUP BY `Shipping Type`;
+
+---Analyzing the relationship between discount usage and purchase value.---
+SELECT 
+    `Discount Applied`, 
+    AVG(`Purchase Amount (USD)`) AS Avg_Purchase_Amount
+FROM shopping_trends
+GROUP BY `Discount Applied`;
+
+---Filtering for "Power Users" who have a high history of purchases and frequent engagement.---
+SELECT * FROM shopping_trends
+WHERE `Previous Purchases` > 5 
+AND (`Frequency of Purchases` = 'Weekly' OR `Frequency of Purchases` = 'Bi-Weekly');
+
+---This section builds a loyalty score ($0-100$) using the formula of Min-Max Normalization---
+-- Normalizing metrics for Loyalty Indexing
+SELECT 
+    `Customer ID`,
+    -- Normalize Previous Purchases
+    ((`Previous Purchases` - (SELECT MIN(`Previous Purchases`) FROM shopping_trends)) / 
+    ((SELECT MAX(`Previous Purchases`) FROM shopping_trends) - (SELECT MIN(`Previous Purchases`) FROM shopping_trends))) * 100 AS Norm_Purchases,
+    
+    -- Normalize Review Ratings
+    ((`Review Rating` - (SELECT MIN(`Review Rating`) FROM shopping_trends)) / 
+    ((SELECT MAX(`Review Rating`) FROM shopping_trends) - (SELECT MIN(`Review Rating`) FROM shopping_trends))) * 100 AS Norm_Rating,
+    
+    -- Normalize Subscription (Boolean)
+    CASE WHEN `Subscription Status` = 'Yes' THEN 100 ELSE 0 END AS Norm_Subscription
+FROM shopping_trends;
